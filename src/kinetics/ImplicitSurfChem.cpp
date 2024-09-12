@@ -6,7 +6,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #include "cantera/kinetics/ImplicitSurfChem.h"
 #include "cantera/kinetics/solveSP.h"
@@ -43,7 +43,7 @@ ImplicitSurfChem::ImplicitSurfChem(
         m_vecKinPtrs.push_back(kinPtr);
         size_t ns = k[n]->surfacePhaseIndex();
         if (ns == npos) {
-            throw CanteraError("ImplicitSurfChem",
+            throw CanteraError("ImplicitSurfChem::ImplicitSurfChem",
                                "kinetics manager contains no surface phase");
         }
         m_surfindex.push_back(ns);
@@ -84,7 +84,6 @@ ImplicitSurfChem::ImplicitSurfChem(
     // numerically, and use a Newton linear iterator
     m_integ->setMethod(BDF_Method);
     m_integ->setProblemType(DENSE + NOJAC);
-    m_integ->setIterator(Newton_Iter);
     m_work.resize(ntmax);
 }
 
@@ -127,13 +126,13 @@ void ImplicitSurfChem::setTolerances(double rtol, double atol)
 void ImplicitSurfChem::setMaxSteps(size_t maxsteps)
 {
     m_nmax = maxsteps;
-    m_integ->setMaxSteps(m_nmax);
+    m_integ->setMaxSteps(static_cast<int>(m_nmax));
 }
 
 void ImplicitSurfChem::setMaxErrTestFails(size_t maxErrTestFails)
 {
     m_maxErrTestFails = maxErrTestFails;
-    m_integ->setMaxErrTestFails(m_maxErrTestFails);
+    m_integ->setMaxErrTestFails(static_cast<int>(m_maxErrTestFails));
 }
 
 void ImplicitSurfChem::initialize(doublereal t0)

@@ -73,7 +73,7 @@ Code of Conduct
     :target: https://www.contributor-covenant.org/version/1/4/code-of-conduct.html
 
 In order to have a more open and welcoming community, Cantera adheres to a
-`code of conduct <CODE_OF_CONDUCT.md>`_ adapted from the `Contributor Covenent
+`code of conduct <CODE_OF_CONDUCT.md>`_ adapted from the `Contributor Covenant
 code of conduct <https://contributor-covenant.org/>`_.
 
 Please adhere to this code of conduct in any interactions you have in the
@@ -88,7 +88,7 @@ possible.
 Development Site
 ================
 
-The current development version is 2.5.0a2. The current stable version is
+The current development version is 2.5.0a4. The current stable version is
 2.4.0. The `latest Cantera source code <https://github.com/Cantera/cantera>`_,
 the `issue tracker <https://github.com/Cantera/cantera/issues>`_ for bugs and
 enhancement requests, `downloads of Cantera releases and binary installers
@@ -157,8 +157,8 @@ development of Cantera through NumFOCUS.
     :width: 675px
     :align: middle
 
-.. |travisci| image:: https://travis-ci.org/Cantera/cantera.svg?branch=master
-    :target: https://travis-ci.org/Cantera/cantera
+.. |travisci| image:: https://travis-ci.com/Cantera/cantera.svg?branch=master
+    :target: https://travis-ci.com/Cantera/cantera
 
 .. |appveyor| image:: https://ci.appveyor.com/api/projects/status/auhd35qn9cdmkpoj?svg=true
     :target: https://ci.appveyor.com/project/Cantera/cantera

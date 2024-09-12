@@ -5,7 +5,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #ifndef CT_MULTISPECIESTHERMO_H
 #define CT_MULTISPECIESTHERMO_H
@@ -189,7 +189,7 @@ public:
     bool ready(size_t nSpecies);
 
 private:
-    //! Provide the SpeciesthermoInterpType object
+    //! Provide the SpeciesThermoInterpType object
     /*!
      * @param k  species index
      * @return pointer to the SpeciesThermoInterpType object.

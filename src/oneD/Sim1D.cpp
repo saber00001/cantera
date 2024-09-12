@@ -3,7 +3,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #include "cantera/oneD/Sim1D.h"
 #include "cantera/oneD/MultiJac.h"
@@ -12,6 +12,7 @@
 #include "cantera/numerics/funcs.h"
 #include "cantera/base/xml.h"
 #include "cantera/numerics/Func1.h"
+#include <limits>
 
 using namespace std;
 
@@ -124,8 +125,8 @@ void Sim1D::restore(const std::string& fname, const std::string& id,
     for (size_t m = 0; m < nDomains(); m++) {
         Domain1D& dom = domain(m);
         if (loglevel > 0 && xd[m]->attrib("id") != dom.id()) {
-            writelog("Warning: domain names do not match: '" +
-                     (*xd[m])["id"] + + "' and '" + dom.id() + "'\n");
+            warn_user("Sim1D::restore", "Domain names do not match: "
+                "'{} and '{}'", (*xd[m])["id"], dom.id());
         }
         dom.resize(domain(m).nComponents(), intValue((*xd[m])["points"]));
     }
@@ -424,11 +425,11 @@ int Sim1D::refine(int loglevel)
     return np;
 }
 
-int Sim1D::setFixedTemperature(doublereal t)
+int Sim1D::setFixedTemperature(double t)
 {
     int np = 0;
     vector_fp znew, xnew;
-    doublereal zfixed;
+    doublereal zfixed = 0.0;
     doublereal z1 = 0.0, z2 = 0.0, t1,t2;
     size_t m1 = 0;
     std::vector<size_t> dsize;
@@ -511,8 +512,34 @@ int Sim1D::setFixedTemperature(doublereal t)
     return np;
 }
 
-void Sim1D::setRefineCriteria(int dom, doublereal ratio,
-                              doublereal slope, doublereal curve, doublereal prune)
+double Sim1D::fixedTemperature()
+{
+    double t_fixed = std::numeric_limits<double>::quiet_NaN();
+    for (size_t n = 0; n < nDomains(); n++) {
+        StFlow* d = dynamic_cast<StFlow*>(&domain(n));
+        if (d && d->domainType() == cFreeFlow && d->m_tfixed > 0) {
+            t_fixed = d->m_tfixed;
+            break;
+        }
+    }
+    return t_fixed;
+}
+
+double Sim1D::fixedTemperatureLocation()
+{
+    double z_fixed = std::numeric_limits<double>::quiet_NaN();
+    for (size_t n = 0; n < nDomains(); n++) {
+        StFlow* d = dynamic_cast<StFlow*>(&domain(n));
+        if (d && d->domainType() == cFreeFlow && d->m_tfixed > 0) {
+            z_fixed = d->m_zfixed;
+            break;
+        }
+    }
+    return z_fixed;
+}
+
+void Sim1D::setRefineCriteria(int dom, double ratio,
+                              double slope, double curve, double prune)
 {
     if (dom >= 0) {
         Refiner& r = domain(dom).refiner();

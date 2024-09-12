@@ -17,6 +17,8 @@ class Kinetics;
 class SurfPhase;
 class Func1;
 
+//! Magic numbers
+//! @deprecated To be removed after Cantera 2.5.
 const int WallType = 1;
 
 /**
@@ -70,9 +72,9 @@ public:
      * @deprecated To be removed after Cantera 2.5.
      */
     double getArea() const {
-        warn_deprecated("WallBase::getArea()", 
+        warn_deprecated("WallBase::getArea",
                         "To be removed after Cantera 2.5. "
-                        "Replace with WallBase::area().");        
+                        "Replace with WallBase::area.");
         return m_area;
     }
 
@@ -214,7 +216,7 @@ protected:
     //! Heat flux function
     Func1* m_qf;
 };
-  
+
 }
 
 #endif

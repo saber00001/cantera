@@ -5,7 +5,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #include "cantera/tpx/Sub.h"
 #include "cantera/base/stringUtils.h"
@@ -86,6 +86,7 @@ double Substance::cv()
 double Substance::cp()
 {
     double Tsave = T, dt = 1.e-4*T;
+    double RhoSave = Rho;
     double T1 = std::max(Tmin(), Tsave - dt);
     double T2 = std::min(Tmax(), Tsave + dt);
     double p0 = P();
@@ -115,13 +116,14 @@ double Substance::cp()
     }
     double s2 = s();
 
-    Set(PropertyPair::TP, Tsave, p0);
+    Set(PropertyPair::TV, Tsave, 1.0 / RhoSave);
     return T*(s2 - s1)/(T2-T1);
 }
 
 double Substance::thermalExpansionCoeff()
 {
     double Tsave = T, dt = 1.e-4*T;
+    double RhoSave = Rho;
     double T1 = std::max(Tmin(), Tsave - dt);
     double T2 = std::min(Tmax(), Tsave + dt);
     double p0 = P();
@@ -153,13 +155,14 @@ double Substance::thermalExpansionCoeff()
     }
     double v2 = v();
 
-    Set(PropertyPair::TP, Tsave, p0);
+    Set(PropertyPair::TV, Tsave, 1.0 / RhoSave);
     return 2.0*(v2 - v1)/((v2 + v1)*(T2-T1));
 }
 
 double Substance::isothermalCompressibility()
 {
     double Psave = P(), dp = 1.e-4*Psave;
+    double RhoSave = Rho;
     double x0 = x();
 
     if (TwoPhase()) {
@@ -191,7 +194,7 @@ double Substance::isothermalCompressibility()
     }
     double v2 = v();
 
-    Set(PropertyPair::TP, T, Psave);
+    Set(PropertyPair::TV, T, 1.0 / RhoSave);
     return -(v2 - v1)/(v0*(P2-P1));
 }
 
@@ -497,7 +500,7 @@ void Substance::update_sat()
         }
 
         if (i >= 20) {
-            throw CanteraError("substance::update_sat","no convergence");
+            throw CanteraError("Substance::update_sat", "no convergence");
         } else {
             Pst = pp;
             Tslast = T;

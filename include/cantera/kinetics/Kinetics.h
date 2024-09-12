@@ -6,7 +6,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #ifndef CT_KINETICS_H
 #define CT_KINETICS_H
@@ -740,6 +740,9 @@ public:
     void skipUndeclaredSpecies(bool skip) {
         m_skipUndeclaredSpecies = skip;
     }
+    bool skipUndeclaredSpecies() const {
+        return m_skipUndeclaredSpecies;
+    }
 
     //! Determine behavior when adding a new reaction that contains third-body
     //! efficiencies for species not defined in any of the phases associated
@@ -748,6 +751,9 @@ public:
     //! raised.
     void skipUndeclaredThirdBodies(bool skip) {
         m_skipUndeclaredThirdBodies = skip;
+    }
+    bool skipUndeclaredThirdBodies() const {
+        return m_skipUndeclaredThirdBodies;
     }
 
     //@}
@@ -807,6 +813,11 @@ public:
      */
     void selectPhase(const doublereal* data, const thermo_t* phase,
                      doublereal* phase_data);
+
+    //! Set root Solution holding all phase information
+    virtual void setRoot(std::shared_ptr<Solution> root) {
+        m_root = root;
+    }
 
 protected:
     //! Cache for saved calculations within each Kinetics object.
@@ -889,10 +900,10 @@ protected:
     std::vector<size_t> m_start;
 
     /**
-     * Mapping of the phase id, i.e., the id attribute in the XML phase element
-     * to the position of the phase within the kinetics object. Positions start
-     * with the value of 1. The member function, phaseIndex() decrements by one
-     * before returning the index value, so that missing phases return -1.
+     * Mapping of the phase name to the position of the phase within the
+     * kinetics object. Positions start with the value of 1. The member
+     * function, phaseIndex() decrements by one before returning the index
+     * value, so that missing phases return -1.
      */
     std::map<std::string, size_t> m_phaseindex;
 
@@ -929,6 +940,9 @@ protected:
 
     //! @see skipUndeclaredThirdBodies()
     bool m_skipUndeclaredThirdBodies;
+
+    //! reference to Solution
+    std::weak_ptr<Solution> m_root;
 };
 
 }

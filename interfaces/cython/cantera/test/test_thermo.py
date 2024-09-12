@@ -1,7 +1,10 @@
 from os.path import join as pjoin
+from pathlib import Path
+from collections import OrderedDict
 import os
 import numpy as np
 import gc
+import warnings
 
 import cantera as ct
 from . import utilities
@@ -11,8 +14,50 @@ class TestThermoPhase(utilities.CanteraTest):
     def setUp(self):
         self.phase = ct.Solution('h2o2.xml')
 
+    def test_source(self):
+        self.assertEqual(self.phase.source, 'h2o2.xml')
+
+    def test_missing_phases_key(self):
+        yaml = '''
+        species:
+        - name: H
+          composition: {H: 1}
+          thermo:
+            model: NASA7
+            temperature-ranges: [200.0, 1000.0, 6000.0]
+            data:
+            - [2.5, 0.0, 0.0, 0.0, 0.0, 2.547366e+04, -0.44668285]
+            - [2.5, 0.0, 0.0, 0.0, 0.0, 2.547366e+04, -0.44668285]
+            note: L6/94
+        '''
+        with self.assertRaisesRegex(ct.CanteraError, "Key 'phases' not found"):
+            _ = ct.Solution(yaml=yaml)
+
+    def test_base_attributes(self):
+        self.assertIsInstance(self.phase.name, str)
+        self.assertIsInstance(self.phase.phase_of_matter, str)
+        self.assertIsInstance(self.phase.thermo_model, str)
+        self.assertIsInstance(self.phase.kinetics_model, str)
+        self.assertIsInstance(self.phase.transport_model, str)
+        self.assertIsInstance(self.phase.composite, tuple)
+        self.assertEqual(len(self.phase.composite), 3)
+        self.assertEqual(self.phase.composite,
+                         (self.phase.thermo_model,
+                          self.phase.kinetics_model,
+                          self.phase.transport_model))
+        self.phase.name = 'spam'
+        self.assertEqual(self.phase.name, 'spam')
+        with self.assertRaises(AttributeError):
+            self.phase.type = 'eggs'
+
     def test_phases(self):
         self.assertEqual(self.phase.n_phases, 1)
+        self.assertEqual(self.phase.phase_of_matter, "gas")
+
+    def test_states(self):
+        self.assertEqual(self.phase._native_state, ('T', 'D', 'Y'))
+        self.assertIn('TPY', self.phase._full_states.values())
+        self.assertIn('TD', self.phase._partial_states.values())
 
     def test_species(self):
         self.assertEqual(self.phase.n_species, 9)
@@ -51,8 +96,8 @@ class TestThermoPhase(utilities.CanteraTest):
 
         mO = self.phase.element_index('O')
         self.assertEqual(Zo, self.phase.elemental_mass_fraction(mO))
-        self.assertNear(Zo, 0.5 + 0.5 * (15.9994 / 18.01528))
-        self.assertNear(Zh, 0.5 * (2.01588 / 18.01528))
+        self.assertNear(Zo, 0.5 + 0.5 * (15.999 / 18.015))
+        self.assertNear(Zh, 0.5 * (2.016 / 18.015))
         self.assertEqual(Zar, 0.0)
 
         with self.assertRaisesRegex(ValueError, 'No such element'):
@@ -78,7 +123,7 @@ class TestThermoPhase(utilities.CanteraTest):
             self.phase.elemental_mole_fraction(5)
 
     def test_elemental_mass_mole_fraction(self):
-        # expected relationship between elmental mass and mole fractions
+        # expected relationship between elemental mass and mole fractions
         comps = ['H2O:0.5, O2:0.5', 'H2:0.1, O2:0.4, H2O2:0.3, AR:0.2',
                  'O2:0.1, H2:0.9']
         for comp in comps:
@@ -104,6 +149,15 @@ class TestThermoPhase(utilities.CanteraTest):
             for j,aw in enumerate(atomic_weights):
                 test_weight += aw * self.phase.n_atoms(i,j)
             self.assertNear(test_weight, mw)
+
+    def test_charges(self):
+        gas = ct.Solution('ch4_ion.yaml')
+        charges = gas.charges
+        test = {'E': -1., 'N2': 0., 'H3O+': 1.}
+        for species, charge in test.items():
+            self.assertIn(species, gas.species_names)
+            index = gas.species_index(species)
+            self.assertEqual(charges[index], charge)
 
     def test_setComposition(self):
         X = np.zeros(self.phase.n_species)
@@ -262,7 +316,7 @@ class TestThermoPhase(utilities.CanteraTest):
         gas = ct.Solution('gri30.xml')
         for phi in np.linspace(0.5, 2.0, 5):
             gas.set_equivalence_ratio(phi, 'CH4:0.8, CH3OH:0.2', 'O2:1.0, N2:3.76')
-            self.assertNear(phi, gas.get_equivalence_ratio())  
+            self.assertNear(phi, gas.get_equivalence_ratio())
         # Check sulfur species
         sulfur_species = [k for k in ct.Species.listFromFile('nasa_gas.xml') if k.name in ("SO", "SO2")]
         gas = ct.Solution(thermo='IdealGas', kinetics='GasKinetics',
@@ -298,18 +352,37 @@ class TestThermoPhase(utilities.CanteraTest):
             self.assertNotIn(name, report)
 
     def test_name(self):
-        self.assertEqual(self.phase.name, 'ohmech')
-
         self.phase.name = 'something'
         self.assertEqual(self.phase.name, 'something')
         self.assertIn('something', self.phase.report())
 
-    def test_ID(self):
-        self.assertEqual(self.phase.ID, 'ohmech')
-
-        self.phase.ID = 'something'
-        self.assertEqual(self.phase.ID, 'something')
+    def test_phase(self):
         self.assertEqual(self.phase.name, 'ohmech')
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.assertEqual(self.phase.ID, 'ohmech')
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
+            self.assertIn("To be removed after Cantera 2.5. ",
+                          str(w[-1].message))
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.phase.ID = 'something'
+            self.assertEqual(self.phase.name, 'something')
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
+            self.assertIn("To be removed after Cantera 2.5. ",
+                          str(w[-1].message))
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            gas = ct.Solution('h2o2.cti', phaseid='ohmech')
+            self.assertEqual(len(w), 1)
+            self.assertTrue(issubclass(w[-1].category, FutureWarning))
+            self.assertIn("Keyword 'name' replaces 'phaseid'",
+                          str(w[-1].message))
 
     def test_badLength(self):
         X = np.zeros(5)
@@ -320,24 +393,24 @@ class TestThermoPhase(utilities.CanteraTest):
 
     def test_mass_basis(self):
         self.assertEqual(self.phase.basis, 'mass')
-        self.assertEqual(self.phase.density_mass, self.phase.density)
-        self.assertEqual(self.phase.enthalpy_mass, self.phase.h)
-        self.assertEqual(self.phase.entropy_mass, self.phase.s)
-        self.assertEqual(self.phase.int_energy_mass, self.phase.u)
-        self.assertEqual(self.phase.volume_mass, self.phase.v)
-        self.assertEqual(self.phase.cv_mass, self.phase.cv)
-        self.assertEqual(self.phase.cp_mass, self.phase.cp)
+        self.assertNear(self.phase.density_mass, self.phase.density)
+        self.assertNear(self.phase.enthalpy_mass, self.phase.h)
+        self.assertNear(self.phase.entropy_mass, self.phase.s)
+        self.assertNear(self.phase.int_energy_mass, self.phase.u)
+        self.assertNear(self.phase.volume_mass, self.phase.v)
+        self.assertNear(self.phase.cv_mass, self.phase.cv)
+        self.assertNear(self.phase.cp_mass, self.phase.cp)
 
     def test_molar_basis(self):
         self.phase.basis = 'molar'
         self.assertEqual(self.phase.basis, 'molar')
-        self.assertEqual(self.phase.density_mole, self.phase.density)
-        self.assertEqual(self.phase.enthalpy_mole, self.phase.h)
-        self.assertEqual(self.phase.entropy_mole, self.phase.s)
-        self.assertEqual(self.phase.int_energy_mole, self.phase.u)
-        self.assertEqual(self.phase.volume_mole, self.phase.v)
-        self.assertEqual(self.phase.cv_mole, self.phase.cv)
-        self.assertEqual(self.phase.cp_mole, self.phase.cp)
+        self.assertNear(self.phase.density_mole, self.phase.density)
+        self.assertNear(self.phase.enthalpy_mole, self.phase.h)
+        self.assertNear(self.phase.entropy_mole, self.phase.s)
+        self.assertNear(self.phase.int_energy_mole, self.phase.u)
+        self.assertNear(self.phase.volume_mole, self.phase.v)
+        self.assertNear(self.phase.cv_mole, self.phase.cv)
+        self.assertNear(self.phase.cp_mole, self.phase.cp)
 
     def check_setters(self, T1, rho1, Y1):
         T0, rho0, Y0 = self.phase.TDY
@@ -843,8 +916,8 @@ class ImportTest(utilities.CanteraTest):
     """
     Test the various ways of creating a Solution object
     """
-    def check(self, gas, name, T, P, nSpec, nElem):
-        self.assertEqual(gas.name, name)
+    def check(self, gas, phase, T, P, nSpec, nElem):
+        self.assertEqual(gas.name, phase)
         self.assertNear(gas.T, T)
         self.assertNear(gas.P, P)
         self.assertEqual(gas.n_species, nSpec)
@@ -918,6 +991,18 @@ ideal_gas(name='spam', elements='O H',
     def test_checkReactionBalance(self):
         with self.assertRaisesRegex(ct.CanteraError, 'reaction is unbalanced'):
             ct.Solution('h2o2_unbalancedReaction.xml')
+
+    def test_yaml_ideal_gas_simple(self):
+        gas = ct.ThermoPhase('ideal-gas.yaml', 'simple')
+        self.check(gas, 'simple', 500, 10 * ct.one_atm, 3, 2)
+
+    def test_yaml_ideal_gas_remote_species(self):
+        gas = ct.ThermoPhase('ideal-gas.yaml', 'species-remote')
+        self.check(gas, 'species-remote', 300, ct.one_atm, 4, 2)
+
+    def test_yaml_duplicate(self):
+        with self.assertRaisesRegex(ct.CanteraError, 'duplicate'):
+            gas = ct.ThermoPhase('ideal-gas.yaml', 'duplicate-species')
 
 
 class TestSpecies(utilities.CanteraTest):
@@ -1010,6 +1095,10 @@ class TestSpecies(utilities.CanteraTest):
         self.assertEqual({sp.name for sp in S},
                          set(self.gas.species_names))
 
+    def test_listfromFile_yaml(self):
+        S = ct.Species.listFromFile('ideal-gas.yaml')
+        self.assertEqual(S[0].name, 'O2')
+
     def test_listFromCti(self):
         p = os.path.dirname(__file__)
         with open(pjoin(p, '..', 'data', 'h2o2.cti')) as f:
@@ -1017,6 +1106,28 @@ class TestSpecies(utilities.CanteraTest):
 
         self.assertEqual({sp.name for sp in S},
                          set(self.gas.species_names))
+
+    def test_listFomYaml(self):
+        yaml = '''
+        - name: H2O
+          composition: {H: 2, O: 1}
+          thermo: {model: constant-cp, h0: 100}
+        - name: HO2
+          composition: {H: 1, O: 2}
+          thermo: {model: constant-cp, h0: 200}
+        '''
+        species = ct.Species.listFromYaml(yaml)
+        self.assertEqual(species[0].name, 'H2O')
+        self.assertEqual(species[1].composition, {'H': 1, 'O': 2})
+        self.assertNear(species[0].thermo.h(300), 100)
+
+    def test_listFromYaml_section(self):
+        species = ct.Species.listFromYaml(
+            Path(__file__).parent.joinpath('data', 'ideal-gas.yaml').read_text(),
+            'species')
+
+        self.assertEqual(species[0].name, 'O2')
+        self.assertEqual(species[1].composition, {'N': 1, 'O': 1})
 
     def test_listFromXml(self):
         p = os.path.dirname(__file__)
@@ -1065,6 +1176,27 @@ class TestSpecies(utilities.CanteraTest):
         with self.assertRaisesRegex(ct.CanteraError, 'modifySpecies'):
             self.gas.modify_species(self.gas.species_index('H2'), copy)
 
+    def test_alias(self):
+        self.gas.add_species_alias('H2', 'hydrogen')
+        self.assertTrue(self.gas.species_index('hydrogen') == 0)
+        self.gas.X = 'hydrogen:.5, O2:.5'
+        self.assertNear(self.gas.X[0], 0.5)
+        with self.assertRaisesRegex(ct.CanteraError, 'Invalid alias'):
+            self.gas.add_species_alias('H2', 'O2')
+        with self.assertRaisesRegex(ct.CanteraError, 'Unable to add alias'):
+            self.gas.add_species_alias('spam', 'eggs')
+
+    def test_isomers(self):
+        gas = ct.Solution('nDodecane_Reitz.yaml')
+        iso = gas.find_isomers({'C':4, 'H':9, 'O':2})
+        self.assertTrue(len(iso) == 2)
+        iso = gas.find_isomers('C:4, H:9, O:2')
+        self.assertTrue(len(iso) == 2)
+        iso = gas.find_isomers({'C':7, 'H':15})
+        self.assertTrue(len(iso) == 1)
+        iso = gas.find_isomers({'C':7, 'H':16})
+        self.assertTrue(len(iso) == 0)
+
 
 class TestSpeciesThermo(utilities.CanteraTest):
     h2o_coeffs = [
@@ -1095,7 +1227,7 @@ class TestSpeciesThermo(utilities.CanteraTest):
     def test_wrap(self):
         st = self.gas.species('H2O').thermo
 
-        self.assertTrue(isinstance(st, ct.NasaPoly2))
+        self.assertIsInstance(st, ct.NasaPoly2)
 
         for T in [300, 500, 900, 1200, 2000]:
             self.gas.TP = T, 101325
@@ -1109,6 +1241,94 @@ class TestSpeciesThermo(utilities.CanteraTest):
         self.assertEqual(st.max_temp, 3500)
         self.assertEqual(st.reference_pressure, 101325)
         self.assertArrayNear(self.h2o_coeffs, st.coeffs)
+        self.assertTrue(st.n_coeffs == len(st.coeffs))
+        self.assertTrue(st._check_n_coeffs(st.n_coeffs))
+
+    def test_nasa9_load(self):
+        gas = ct.Solution('airNASA9.cti')
+        st = gas.species(3).thermo
+        self.assertIsInstance(st, ct.Nasa9PolyMultiTempRegion)
+        self.assertEqual(st.n_coeffs, len(st.coeffs))
+        self.assertTrue(st._check_n_coeffs(st.n_coeffs))
+
+    def test_nasa9_create(self):
+        gas = ct.Solution('airNASA9.cti')
+        st = gas.species(3).thermo
+        t_min = st.min_temp
+        t_max = st.max_temp
+        p_ref = st.reference_pressure
+        coeffs = st.coeffs
+        st2 = ct.Nasa9PolyMultiTempRegion(t_min, t_max, p_ref, coeffs)
+        self.assertIsInstance(st2, ct.Nasa9PolyMultiTempRegion)
+        self.assertEqual(st.min_temp, t_min)
+        self.assertEqual(st.max_temp, t_max)
+        self.assertEqual(st.reference_pressure, p_ref)
+        for T in range(300, 20000, 1000):
+            self.assertNear(st.cp(T), st2.cp(T))
+            self.assertNear(st.h(T), st2.h(T))
+            self.assertNear(st.s(T), st2.s(T))
+
+    def test_shomate_load(self):
+        sol = ct.Solution('thermo-models.yaml', 'molten-salt-Margules')
+        st = sol.species(0).thermo
+        self.assertIsInstance(st, ct.ShomatePoly2)
+        self.assertEqual(st.n_coeffs, len(st.coeffs))
+        self.assertTrue(st._check_n_coeffs(st.n_coeffs))
+
+    def test_shomate_create(self):
+        sol = ct.Solution('thermo-models.yaml', 'molten-salt-Margules')
+        st = sol.species(0).thermo
+        t_min = st.min_temp
+        t_max = st.max_temp
+        p_ref = st.reference_pressure
+        coeffs = st.coeffs
+        st2 = ct.ShomatePoly2(t_min, t_max, p_ref, coeffs)
+        self.assertIsInstance(st2, ct.ShomatePoly2)
+        self.assertEqual(st.min_temp, t_min)
+        self.assertEqual(st.max_temp, t_max)
+        self.assertEqual(st.reference_pressure, p_ref)
+        for T in [300, 500, 700, 900]:
+            self.assertNear(st.cp(T), st2.cp(T))
+            self.assertNear(st.h(T), st2.h(T))
+            self.assertNear(st.s(T), st2.s(T))
+
+    def test_piecewise_gibbs_load(self):
+        sol = ct.Solution('thermo-models.yaml', 'HMW-NaCl-electrolyte')
+        st = sol.species(1).thermo
+        self.assertIsInstance(st, ct.Mu0Poly)
+        self.assertEqual(st.n_coeffs, len(st.coeffs))
+        self.assertTrue(st._check_n_coeffs(st.n_coeffs))
+
+    def test_piecewise_gibbs_create1(self):
+        # use OH- ion data from test/thermo/phaseConstructors.cpp
+        h298 = -230.015e6
+        T1 = 298.15
+        mu1 = -91.50963
+        T2 = 333.15
+        mu2 = -85
+        pref = 101325
+        coeffs = [2, h298, T1, mu1*ct.gas_constant*T1, T2, mu2*ct.gas_constant*T2]
+        st2 = ct.Mu0Poly(200, 3500, pref, coeffs)
+        self.assertIsInstance(st2, ct.Mu0Poly)
+        self.assertEqual(st2.n_coeffs, len(coeffs))
+        self.assertEqual(st2.n_coeffs, len(st2.coeffs))
+
+    def test_piecewise_gibbs_create2(self):
+        sol = ct.Solution('thermo-models.yaml', 'HMW-NaCl-electrolyte')
+        st = sol.species(1).thermo
+        t_min = st.min_temp
+        t_max = st.max_temp
+        p_ref = st.reference_pressure
+        coeffs = st.coeffs
+        st2 = ct.Mu0Poly(t_min, t_max, p_ref, coeffs)
+        self.assertIsInstance(st2, ct.Mu0Poly)
+        self.assertEqual(st.min_temp, t_min)
+        self.assertEqual(st.max_temp, t_max)
+        self.assertEqual(st.reference_pressure, p_ref)
+        for T in [300, 500, 700, 900]:
+            self.assertNear(st.cp(T), st2.cp(T))
+            self.assertNear(st.h(T), st2.h(T))
+            self.assertNear(st.s(T), st2.s(T))
 
 
 class TestQuantity(utilities.CanteraTest):
@@ -1214,6 +1434,39 @@ class TestMisc(utilities.CanteraTest):
         with self.assertRaises(AttributeError):
             ct.Solution(3)
 
+    def test_case_sensitive_names(self):
+        gas = ct.Solution('h2o2.xml')
+        self.assertFalse(gas.case_sensitive_species_names)
+        self.assertTrue(gas.species_index('h2') == 0)
+        gas.X = 'h2:.5, o2:.5'
+        self.assertNear(gas.X[0], 0.5)
+        gas.Y = 'h2:.5, o2:.5'
+        self.assertNear(gas.Y[0], 0.5)
+
+        gas.case_sensitive_species_names = True
+        self.assertTrue(gas.case_sensitive_species_names)
+        with self.assertRaises(ValueError):
+            gas.species_index('h2')
+        with self.assertRaisesRegex(ct.CanteraError, 'Unknown species'):
+            gas.X = 'h2:1.0, o2:1.0'
+        with self.assertRaisesRegex(ct.CanteraError, 'Unknown species'):
+            gas.Y = 'h2:1.0, o2:1.0'
+
+        gas_cti = """ideal_gas(
+            name="gas",
+            elements=" S C Cs ",
+            species=" nasa: all ",
+            options=["skip_undeclared_elements"],
+            initial_state=state(temperature=300, pressure=(1, "bar"))
+        )"""
+        ct.suppress_thermo_warnings(True)
+        gas = ct.Solution(source=gas_cti)
+        with self.assertRaisesRegex(ct.CanteraError, 'is not unique'):
+            gas.species_index('cs')
+        gas.case_sensitive_species_names = True
+        with self.assertRaises(ValueError):
+            gas.species_index('cs')
+
 
 class TestElement(utilities.CanteraTest):
     @classmethod
@@ -1229,9 +1482,9 @@ class TestElement(utilities.CanteraTest):
         self.assertEqual(carbon.symbol, 'C')
 
     def test_element_weight(self):
-        self.assertNear(self.ar_sym.weight, 39.948)
-        self.assertNear(self.ar_name.weight, 39.948)
-        self.assertNear(self.ar_num.weight, 39.948)
+        self.assertNear(self.ar_sym.weight, 39.95)
+        self.assertNear(self.ar_name.weight, 39.95)
+        self.assertNear(self.ar_num.weight, 39.95)
 
     def test_element_symbol(self):
         self.assertEqual(self.ar_sym.symbol, 'Ar')
@@ -1261,20 +1514,24 @@ class TestElement(utilities.CanteraTest):
         with self.assertRaisesRegex(ct.CanteraError, 'IndexError'):
             ct.Element(num_elements + 1)
 
+    def test_element_no_weight(self):
+        with self.assertRaisesRegex(ct.CanteraError, 'no stable isotopes'):
+            ct.Element('Tc')
+
     def test_element_bad_input(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaisesRegex(TypeError, 'input argument to Element'):
             ct.Element(1.2345)
 
     def test_get_isotope(self):
         d_sym = ct.Element('D')
         self.assertEqual(d_sym.atomic_number, 1)
-        self.assertNear(d_sym.weight, 2.0)
+        self.assertNear(d_sym.weight, 2.0141017781)
         self.assertEqual(d_sym.name, 'deuterium')
         self.assertEqual(d_sym.symbol, 'D')
 
         d_name = ct.Element('deuterium')
         self.assertEqual(d_name.atomic_number, 1)
-        self.assertNear(d_name.weight, 2.0)
+        self.assertNear(d_name.weight, 2.0141017781)
         self.assertEqual(d_name.name, 'deuterium')
         self.assertEqual(d_name.symbol, 'D')
 
@@ -1298,6 +1555,12 @@ class TestSolutionArray(utilities.CanteraTest):
         self.assertEqual(states.reaction_equation(10),
                          self.gas.reaction_equation(10))
 
+    def test_meta(self):
+        meta = {'foo': 'bar', 'spam': 'eggs'}
+        states = ct.SolutionArray(self.gas, 3, meta=meta)
+        self.assertEqual(states.meta['foo'], 'bar')
+        self.assertEqual(states.meta['spam'], 'eggs')
+
     def test_get_state(self):
         states = ct.SolutionArray(self.gas, 4)
         H, P = states.HP
@@ -1308,6 +1571,20 @@ class TestSolutionArray(utilities.CanteraTest):
         self.assertEqual(S.shape, (4,))
         self.assertEqual(P.shape, (4,))
         self.assertEqual(Y.shape, (4, self.gas.n_species))
+
+    def test_idealgas_getters(self):
+        N = 11
+        states = ct.SolutionArray(self.gas, N)
+        getters = 'TDPUVHSXY'  # omit getters that contain Q
+
+        # obtain setters from thermo objects
+        all_getters = [k for k in dir(self.gas)
+                       if not set(k) - set(getters) and len(k)>1]
+
+        # ensure that getters do not raise attribute errors
+        for g in all_getters:
+            out = getattr(states, g)
+            self.assertEqual(len(out), len(g))
 
     def test_properties_onedim(self):
         N = 11
@@ -1399,6 +1676,16 @@ class TestSolutionArray(utilities.CanteraTest):
         self.assertArrayNear(col3.T, 900*np.ones(2))
         self.assertArrayNear(row2.T, 900*np.ones(5))
 
+    def test_extra(self):
+        extra = OrderedDict([('grid', np.arange(10)),
+                             ('velocity', np.random.rand(10))])
+        states = ct.SolutionArray(self.gas, 10, extra=extra)
+        keys = list(states._extra.keys())
+        self.assertEqual(keys[0], 'grid')
+
+        with self.assertRaises(ValueError):
+            states = ct.SolutionArray(self.gas, extra=['creation_rates'])
+
     def test_append(self):
         states = ct.SolutionArray(self.gas, 5)
         states.TPX = np.linspace(500, 1000, 5), 2e5, 'H2:0.5, O2:0.4'
@@ -1426,14 +1713,91 @@ class TestSolutionArray(utilities.CanteraTest):
     def test_purefluid(self):
         water = ct.Water()
         states = ct.SolutionArray(water, 5)
-        states.TX = 400, np.linspace(0, 1, 5)
+        states.TQ = 400, np.linspace(0, 1, 5)
 
         P = states.P
         for i in range(1, 5):
             self.assertNear(P[0], P[i])
 
         states.TP = np.linspace(400, 500, 5), 101325
-        self.assertArrayNear(states.X.squeeze(), np.ones(5))
+        self.assertArrayNear(states.Q.squeeze(), np.ones(5))
+
+    def test_purefluid_getters(self):
+        N = 11
+        water = ct.Water()
+        states = ct.SolutionArray(water, N)
+        getters = 'TDPUVHSQ'  # omit getters that contain X or Y
+
+        # obtain setters from thermo objects
+        all_getters = [k for k in dir(water)
+                       if not set(k) - set(getters) and len(k)>1]
+
+        # ensure that getters do not raise attribute errors
+        for g in all_getters:
+            out = getattr(states, g)
+            self.assertEqual(len(out), len(g))
+
+    def test_purefluid_yaml_state(self):
+        yaml = """
+        phases:
+        - name: water
+          thermo: pure-fluid
+          species: [{{liquidvapor.yaml/species: [H2O]}}]
+          state: {{T: {T}, P: 101325, Q: {Q}}}
+          pure-fluid-name: water
+        """
+        w = ct.PureFluid(yaml=yaml.format(T=373.177233, Q=0.5))
+        self.assertNear(w.Q, 0.5)
+
+        with self.assertRaisesRegex(ct.CanteraError, "setState"):
+            ct.PureFluid(yaml=yaml.format(T=373, Q=0.5))
+
+        w = ct.PureFluid(yaml=yaml.format(T=370, Q=0.0))
+        self.assertNear(w.P, 101325)
+
+        with self.assertRaisesRegex(ct.CanteraError, "setState"):
+            ct.PureFluid(yaml=yaml.format(T=370, Q=1.0))
+
+    def test_sort(self):
+        np.random.seed(0)
+        t = np.random.random(101)
+        T = np.linspace(300., 1000., 101)
+        P = ct.one_atm * (1. + 10.*np.random.random(101))
+
+        states = ct.SolutionArray(self.gas, 101, extra={'t': t})
+        states.TP = T, P
+
+        states.sort('t')
+        self.assertTrue((states.t[1:] - states.t[:-1] > 0).all())
+        self.assertFalse((states.T[1:] - states.T[:-1] > 0).all())
+        self.assertFalse(np.allclose(states.P, P))
+
+        states.sort('T')
+        self.assertFalse((states.t[1:] - states.t[:-1] > 0).all())
+        self.assertTrue((states.T[1:] - states.T[:-1] > 0).all())
+        self.assertTrue(np.allclose(states.P, P))
+
+        states.sort('T', reverse=True)
+        self.assertTrue((states.T[1:] - states.T[:-1] < 0).all())
+
+    def test_set_equivalence_ratio(self):
+        states = ct.SolutionArray(self.gas, 8)
+        phi = np.linspace(.5, 2., 8)
+        args = 'H2:1.0', 'O2:1.0'
+        states.set_equivalence_ratio(phi, *args)
+        states.set_equivalence_ratio(phi[0], *args)
+        states.set_equivalence_ratio(list(phi), *args)
+
+        with self.assertRaises(ValueError):
+            states.set_equivalence_ratio(phi[:-1], *args)
+
+        states = ct.SolutionArray(self.gas, (2,4))
+        states.set_equivalence_ratio(phi.reshape((2,4)), *args)
+
+        with self.assertRaises(ValueError):
+            states.set_equivalence_ratio(phi, *args)
+        with self.assertRaises(ValueError):
+            states.set_equivalence_ratio(phi.reshape((4,2)), *args)
 
     def test_species_slicing(self):
         states = ct.SolutionArray(self.gas, (2,5))
@@ -1446,15 +1810,18 @@ class TestSolutionArray(utilities.CanteraTest):
         self.assertArrayNear(states('OH','O').partial_molar_cp,
                              states.partial_molar_cp[...,kk])
 
-    def test_write_csv(self):
-        states = ct.SolutionArray(self.gas, 7)
-        states.TPX = np.linspace(300, 1000, 7), 2e5, 'H2:0.5, O2:0.4'
-        states.equilibrate('HP')
+    def test_slice_SolutionArray(self):
+        soln = ct.SolutionArray(self.gas, 10)
+        arr = soln[2:9:3]
+        self.assertEqual(len(arr.T), 3)
 
-        outfile = pjoin(self.test_work_dir, 'solutionarray.csv')
-        states.write_csv(outfile)
+    def test_zero_length_slice_SolutionArray(self):
+        states = ct.SolutionArray(self.gas, 4)
+        arr1 = states[3:3]
+        self.assertEqual(len(arr1.T), 0)
+        self.assertEqual(arr1.X.shape, (0,9))
+        self.assertEqual(arr1.n_reactions, 28)
 
-        data = np.genfromtxt(outfile, names=True, delimiter=',')
-        self.assertEqual(len(data), 7)
-        self.assertEqual(len(data.dtype), self.gas.n_species + 2)
-        self.assertIn('Y_H2', data.dtype.fields)
+        states.TP = [100,300,900,323.23], ct.one_atm
+        arr2 = states[slice(0)]
+        self.assertEqual(len(arr2.T), 0)

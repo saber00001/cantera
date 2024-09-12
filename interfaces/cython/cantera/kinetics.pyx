@@ -1,5 +1,5 @@
 # This file is part of Cantera. See License.txt in the top-level directory or
-# at http://www.cantera.org/license.txt for license and copyright information.
+# at https://cantera.org/license.txt for license and copyright information.
 
 # NOTE: These cdef functions cannot be members of Kinetics because they would
 # cause "layout conflicts" when creating derived classes with multiple bases,
@@ -25,6 +25,13 @@ cdef class Kinetics(_SolutionBase):
     of progress, species production rates, and other quantities pertaining to
     a reaction mechanism.
     """
+
+    property kinetics_model:
+        """
+        Return type of kinetics.
+        """
+        def __get__(self):
+            return pystr(self.kinetics.kineticsType())
 
     property n_total_species:
         """
@@ -358,19 +365,39 @@ cdef class Kinetics(_SolutionBase):
         def __get__(self):
             return get_reaction_array(self, kin_getDeltaSSEntropy)
 
+    property heat_release_rate:
+        """
+        Get the total volumetric heat release rate [W/m^3].
+        """
+        def __get__(self):
+            return - np.sum(self.partial_molar_enthalpies *
+                            self.net_production_rates, 0)
+
+    property heat_production_rates:
+        """
+        Get the volumetric heat production rates [W/m^3] on a per-reaction
+        basis. The sum over all reactions results in the total volumetric heat
+        release rate.
+        Example: C. K. Law: Combustion Physics (2006), Fig. 7.8.6
+
+        >>> gas.heat_production_rates[1]  # heat production rate of the 2nd reaction
+        """
+        def __get__(self):
+            return - self.net_rates_of_progress * self.delta_enthalpy
+
 
 cdef class InterfaceKinetics(Kinetics):
     """
     A kinetics manager for heterogeneous reaction mechanisms. The
     reactions are assumed to occur at an interface between bulk phases.
     """
-    def __init__(self, infile='', phaseid='', phases=(), *args, **kwargs):
-        super().__init__(infile, phaseid, phases, *args, **kwargs)
+    def __init__(self, infile='', name='', adjacent=(), *args, **kwargs):
+        super().__init__(infile, name, adjacent, *args, **kwargs)
         if pystr(self.kinetics.kineticsType()) not in ("Surf", "Edge"):
             raise TypeError("Underlying Kinetics class is not of the correct type.")
 
         self._phase_indices = {}
-        for phase in [self] + list(phases):
+        for phase in [self] + list(adjacent):
             i = self.kinetics.phaseIndex(stringify(phase.name))
             self._phase_indices[phase] = i
             self._phase_indices[phase.name] = i

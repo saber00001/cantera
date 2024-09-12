@@ -6,7 +6,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #ifndef CT_IMPSURFCHEM_H
 #define CT_IMPSURFCHEM_H
@@ -226,7 +226,7 @@ protected:
      *  This function will set the surface site factions in the underlying
      *  SurfPhase objects to the current value of the solution vector.
      *
-     * @param y Current value of the solution vector. The lenth is equal to
+     * @param y Current value of the solution vector. The length is equal to
      *     the sum of the number of surface sites in all the surface phases.
      */
     void updateState(doublereal* y);

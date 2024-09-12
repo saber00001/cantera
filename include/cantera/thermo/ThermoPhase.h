@@ -6,7 +6,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #ifndef CT_THERMOPHASE_H
 #define CT_THERMOPHASE_H
@@ -51,11 +51,11 @@ const int cSS_CONVENTION_SLAVE = 2;
  * ThermoPhase.
  *
  * Class ThermoPhase extends class Phase by adding methods to compute
- * thermodynamic properties in addition to the ones (temperature, density,
- * composition) that class Phase provides. The distinction is that the methods
- * declared in ThermoPhase require knowing the particular equation of state of
- * the phase of interest, while those of class Phase do not, since they only
- * involve data values stored within the object.
+ * thermodynamic properties in addition to the ones that are used to define the
+ * state of a substance (temperature, density/pressure and composition). The
+ * distinction is that the methods declared in ThermoPhase require knowing the
+ * particular equation of state of the phase of interest, while those of class
+ * Phase do not, since they only involve data values stored within the object.
  *
  * Instances of subclasses of ThermoPhase should be created using the factory
  * class ThermoFactory, not by calling the constructor directly. This allows new
@@ -102,11 +102,32 @@ public:
     //! @name  Information Methods
     //! @{
 
-    //! String indicating the thermodynamic model implemented. Usually
-    //! corresponds to the name of the derived class, less any suffixes such as
-    //! "Phase", TP", "VPSS", etc.
     virtual std::string type() const {
         return "ThermoPhase";
+    }
+
+    //! String indicating the mechanical phase of the matter in this Phase.
+    /*!
+     * Options for the string are:
+     *   * `unspecified`
+     *   * `supercritical`
+     *   * `gas`
+     *   * `liquid`
+     *   * `solid`
+     *   * `solid-liquid-mix`
+     *   * `solid-gas-mix`
+     *   * `liquid-gas-mix`
+     *   * `solid-liquid-gas-mix`
+     *
+     * `unspecified` is the default and should be used when the Phase does not
+     * distinguish between mechanical phases or does not have enough information to
+     * determine which mechanical phase(s) are present.
+     *
+     * @todo Needs to be implemented for all phase types. Currently only implemented for
+     * PureFluidPhase.
+     */
+    virtual std::string phaseOfMatter() const {
+        return "unspecified";
     }
 
     /**
@@ -235,17 +256,6 @@ public:
     //! @name Mechanical Properties
     //! @{
 
-    //! Return the thermodynamic pressure (Pa).
-    /*!
-     *  This method must be overloaded in derived classes. Since the mass
-     *  density, temperature, and mass fractions are stored, this method should
-     *  use these values to implement the mechanical equation of state \f$ P(T,
-     *  \rho, Y_1, \dots, Y_K) \f$.
-     */
-    virtual doublereal pressure() const {
-        throw NotImplementedError("ThermoPhase::pressure");
-    }
-
     //! Returns the isothermal compressibility. Units: 1/Pa.
     /*!
      * The isothermal compressibility is defined as
@@ -269,7 +279,7 @@ public:
      * \f]
      */
     virtual doublereal thermalExpansionCoeff() const {
-        throw NotImplementedError("ThermoPhase::thermalExpansionCoeff()");
+        throw NotImplementedError("ThermoPhase::thermalExpansionCoeff");
     }
 
     /**
@@ -352,6 +362,16 @@ public:
      *   cSS_CONVENTION_SLAVE 2
      */
     virtual int standardStateConvention() const;
+
+    //! Returns the units of the "standard concentration" for this phase
+    /*!
+     * These are the units of the values returned by the functions
+     * getActivityConcentrations() and standardConcentration(), which can
+     * vary between different ThermoPhase-derived classes, or change within
+     * a single class depending on input options. See the documentation for
+     * standardConcentration() for the derived class for specific details.
+     */
+    virtual Units standardConcentrationUnits() const;
 
     //! This method returns an array of generalized concentrations
     /*!
@@ -689,7 +709,7 @@ public:
      *               Length: m_kk
      */
     virtual void getCp_R_ref(doublereal* cprt) const {
-        throw NotImplementedError("ThermoPhase::getCp_R_ref()");
+        throw NotImplementedError("ThermoPhase::getCp_R_ref");
     }
 
     //! Get the molar volumes of the species reference states at the current
@@ -755,21 +775,6 @@ public:
      * These methods set all or part of the thermodynamic state.
      * @{
      */
-
-    //! Set the internally stored pressure (Pa) at constant temperature and
-    //! composition
-    /*!
-     *  This method must be reimplemented in derived classes, where it may
-     *  involve the solution of a nonlinear equation. Within %Cantera, the
-     *  independent variable is the density. Therefore, this function solves for
-     *  the density that will yield the desired input pressure. The temperature
-     *  and composition are held constant during this process.
-     *
-     *  @param p input Pressure (Pa)
-     */
-    virtual void setPressure(doublereal p) {
-        throw NotImplementedError("ThermoPhase::setPressure");
-    }
 
     //! Set the temperature (K), pressure (Pa), and mole fractions.
     /*!
@@ -1140,6 +1145,31 @@ public:
      */
     virtual void setState_RPY(doublereal rho, doublereal p, const std::string& y);
 
+    //! Set the state using an AnyMap containing any combination of properties
+    //! supported by the thermodynamic model
+    /*!
+     * Accepted keys are:
+     * * `X` (mole fractions)
+     * * `Y` (mass fractions)
+     * * `T` or `temperature`
+     * * `P` or `pressure` [Pa]
+     * * `H` or `enthalpy` [J/kg]
+     * * `U` or `internal-energy` [J/kg]
+     * * `S` or `entropy` [J/kg/K]
+     * * `V` or `specific-volume` [m^3/kg]
+     * * `D` or `density` [kg/m^3]
+     *
+     * Composition can be specified as either an AnyMap of species names to
+     * values or as a composition string. All other values can be given as
+     * floating point values in Cantera's default units, or as strings with the
+     * units specified, which will be converted using the Units class.
+     *
+     * If no thermodynamic property pair is given, or only one of temperature or
+     * pressure is given, then 298.15 K and 101325 Pa will be used as necessary
+     * to fully set the state.
+     */
+    virtual void setState(const AnyMap& state);
+
     //@}
 
 private:
@@ -1302,7 +1332,7 @@ public:
      * @param x  Fraction of vapor
      */
     virtual void setState_Tsat(doublereal t, doublereal x) {
-        throw NotImplementedError("ThermoPhase::setState_sat");
+        throw NotImplementedError("ThermoPhase::setState_Tsat");
     }
 
     //! Set the state to a saturated system at a particular pressure
@@ -1311,8 +1341,26 @@ public:
      * @param x  Fraction of vapor
      */
     virtual void setState_Psat(doublereal p, doublereal x) {
-        throw NotImplementedError("ThermoPhase::setState_sat");
+        throw NotImplementedError("ThermoPhase::setState_Psat");
     }
+
+    //! Set the temperature, pressure, and vapor fraction (quality).
+    /*!
+     * An exception is thrown if the thermodynamic state is not consistent.
+     *
+     * For temperatures below the critical temperature, if the vapor fraction is
+     * not 0 or 1, the pressure and temperature must fall on the saturation
+     * line.
+     *
+     * Above the critical temperature, the vapor fraction must be 1 if the
+     * pressure is less than the critical pressure. Above the critical pressure,
+     * the vapor fraction is not defined, and its value is ignored.
+     *
+     * @param T    Temperature (K)
+     * @param P    Pressure (Pa)
+     * @param Q    vapor fraction
+     */
+    void setState_TPQ(double T, double P, double Q);
 
     //@}
 
@@ -1338,11 +1386,17 @@ public:
      * @param k      Species index
      * @param data   Pointer to the XML_Node data containing
      *               information about the species in the phase.
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     void saveSpeciesData(const size_t k, const XML_Node* const data);
 
     //!  Return a pointer to the vector of XML nodes containing the species
     //!  data for this phase.
+    //!
+    //! @deprecated The XML input format is deprecated and will be removed in
+    //!     Cantera 3.0.
     const std::vector<const XML_Node*> & speciesData() const;
 
     //! Return a changeable reference to the calculation manager for species
@@ -1353,17 +1407,19 @@ public:
      * @internal
      */
     virtual MultiSpeciesThermo& speciesThermo(int k = -1);
+    
+    virtual const MultiSpeciesThermo& speciesThermo(int k = -1) const;
 
     /**
      * @internal
-     * Initialize a ThermoPhase object using a ctml file.
+     * Initialize a ThermoPhase object using an input file.
      *
      * Used to implement constructors for derived classes which take a
-     * a CTML filename and phase name as arguments.
+     * file name and phase name as arguments.
      *
-     * @param inputFile XML file containing the description of the phase
+     * @param inputFile Input file containing the description of the phase
      * @param id  Optional parameter identifying the name of the phase. If
-     *            blank, the first XML phase element encountered will be used.
+     *            blank, the first phase definition encountered will be used.
      */
     virtual void initThermoFile(const std::string& inputFile,
                                 const std::string& id);
@@ -1391,6 +1447,9 @@ public:
      *     phase.
      * @param id   ID of the phase. If nonnull, a check is done to see if
      *             phaseNode is pointing to the phase with the correct id.
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     virtual void initThermoXML(XML_Node& phaseNode, const std::string& id);
 
@@ -1402,10 +1461,17 @@ public:
      * required after all species have been added. For example, it might be used
      * to resize internal work arrays that must have an entry for each species.
      * The base class implementation does nothing, and subclasses that do not
-     * require initialization do not need to overload this method.  When
-     * importing a CTML phase description, this method is called from
+     * require initialization do not need to overload this method. Derived
+     * classes which do override this function should call their parent class's
+     * implementation of this function as their last action.
+     *
+     * When importing a CTML phase description, this method is called from
      * initThermoXML(), which is called from importPhase(), just prior to
      * returning from function importPhase().
+     *
+     * When importing from an AnyMap phase description (or from a YAML file),
+     * this method is responsible for setting model parameters from the data
+     * stored in #m_input.
      */
     virtual void initThermo();
 
@@ -1429,6 +1495,16 @@ public:
     virtual void getParameters(int& n, doublereal* const c) const {
     }
 
+    //! Set equation of state parameters from an AnyMap phase description.
+    //! Phases that need additional parameters from the root node should
+    //! override this method.
+    virtual void setParameters(const AnyMap& phaseNode,
+                               const AnyMap& rootNode=AnyMap());
+
+    //! Access input data associated with the phase description
+    const AnyMap& input() const;
+    AnyMap& input();
+
     //! Set equation of state parameter values from XML entries.
     /*!
      * This method is called by function importPhase() when processing a phase
@@ -1439,6 +1515,9 @@ public:
      *
      * @param eosdata An XML_Node object corresponding to
      *                the "thermo" entry for this phase in the input file.
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     virtual void setParametersFromXML(const XML_Node& eosdata) {}
 
@@ -1450,6 +1529,9 @@ public:
      *
      * @param state AN XML_Node object corresponding to the "state" entry for
      *              this phase in the input file.
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     virtual void setStateFromXML(const XML_Node& state);
 
@@ -1581,11 +1663,18 @@ protected:
      */
     MultiSpeciesThermo m_spthermo;
 
+    //! Data supplied via setParameters. When first set, this may include
+    //! parameters used by different phase models when initThermo() is called.
+    AnyMap m_input;
+
     //! Vector of pointers to the species databases.
     /*!
      * This is used to access data needed to construct the transport manager and
      * other properties later in the initialization process. We create a copy of
      * the XML_Node data read in here. Therefore, we own this data.
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     std::vector<const XML_Node*> m_speciesData;
 

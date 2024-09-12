@@ -1,7 +1,7 @@
 //! @file application.h
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #ifndef CT_BASE_APPLICATION_H
 #define CT_BASE_APPLICATION_H
@@ -18,6 +18,8 @@ namespace Cantera
 {
 
 class XML_Node;
+
+int get_modified_time(const std::string& path);
 
 /*!
  * @defgroup globalData Global Data
@@ -289,6 +291,9 @@ public:
      *
      * @param file String containing the relative or absolute file name
      * @param debug Debug flag
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     XML_Node* get_XML_File(const std::string& file, int debug=0);
 
@@ -300,6 +305,9 @@ public:
      * stored in the cache.
      * @param text    CTI or CTML string
      * @return        Root of the corresponding XML tree
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     XML_Node* get_XML_from_string(const std::string& text);
 
@@ -336,6 +344,7 @@ public:
     //! prevent certain tests from failing.
     void suppress_deprecation_warnings() {
         m_suppress_deprecation_warnings = true;
+        m_fatal_deprecation_warnings = false;
     }
 
     //! Turns deprecation warnings into exceptions. Activated within the test
@@ -343,6 +352,10 @@ public:
     void make_deprecation_warnings_fatal() {
         m_fatal_deprecation_warnings = true;
     }
+
+    //! Print a user warning arising during usage of *method*. Additional
+    //! information can be specified in *extra*.
+    void warn_user(const std::string& method, const std::string& extra="");
 
     //! Globally disable printing of warnings about problematic thermo data,
     //! e.g. NASA polynomials with discontinuities at the midpoint temperature.
@@ -404,6 +417,9 @@ protected:
     //! Current vector of XML file trees that have been previously parsed
     //! The second element of the value is used to store the last-modified time
     //! for the file, to enable change detection.
+    //!
+    //! @deprecated The XML input format is deprecated and will be removed in
+    //!     Cantera 3.0.
     std::map<std::string, std::pair<XML_Node*, int> > xmlfiles;
     //! Vector of deprecation warnings that have been emitted (to suppress
     //! duplicates)

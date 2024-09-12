@@ -35,7 +35,22 @@ extern "C" {
 
     // reactor
 
+    //! @deprecated To be changed after Cantera 2.5.
     int reactor_new(int type)
+    {
+        warn_deprecated("reactor_new(int)",
+                        "To be changed after Cantera 2.5. "
+                        "Argument changed to string instead of int; use"
+                        "reactor_new2(char*) during transition.");
+        try {
+            ReactorBase* r = ReactorFactory::factory()->newReactor(type);
+            return ReactorCabinet::add(r);
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int reactor_new2(const char* type)
     {
         try {
             ReactorBase* r = ReactorFactory::factory()->newReactor(type);
@@ -78,10 +93,7 @@ extern "C" {
     int reactor_setKineticsMgr(int i, int n)
     {
         try {
-            // @todo This should not fail silently
-            if (ReactorCabinet::item(i).type() >= ReactorType) {
-                ReactorCabinet::get<Reactor>(i).setKineticsMgr(KineticsCabinet::item(n));
-            }
+            ReactorCabinet::item(i).setKineticsMgr(KineticsCabinet::item(n));
             return 0;
         } catch (...) {
             return handleAllExceptions(-1, ERR);
@@ -163,10 +175,7 @@ extern "C" {
     int reactor_setChemistry(int i, int cflag)
     {
         try {
-            // @todo This should not fail silently
-            if (ReactorCabinet::item(i).type() >= ReactorType) {
-                ReactorCabinet::get<Reactor>(i).setChemistry(cflag != 0);
-            }
+            ReactorCabinet::get<Reactor>(i).setChemistry(cflag != 0);
             return 0;
         } catch (...) {
             return handleAllExceptions(-1, ERR);
@@ -176,10 +185,7 @@ extern "C" {
     int reactor_setEnergy(int i, int eflag)
     {
         try {
-            // @todo This should not fail silently
-            if (ReactorCabinet::item(i).type() >= ReactorType) {
-                ReactorCabinet::get<Reactor>(i).setEnergy(eflag);
-            }
+            ReactorCabinet::get<Reactor>(i).setEnergy(eflag);
             return 0;
         } catch (...) {
             return handleAllExceptions(-1, ERR);
@@ -346,6 +352,20 @@ extern "C" {
 
     int flowdev_new(int type)
     {
+        warn_deprecated("flowdev_new(int)",
+                        "To be changed after Cantera 2.5. "
+                        "Argument changed to string instead of int; use"
+                        "flowdev_new2(char*) during transition.");
+        try {
+            FlowDevice* f = FlowDeviceFactory::factory()->newFlowDevice(type);
+            return FlowDeviceCabinet::add(f);
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int flowdev_new2(const char* type)
+    {
         try {
             FlowDevice* f = FlowDeviceFactory::factory()->newFlowDevice(type);
             return FlowDeviceCabinet::add(f);
@@ -370,7 +390,8 @@ extern "C" {
             bool ok = FlowDeviceCabinet::item(i).install(ReactorCabinet::item(n),
                       ReactorCabinet::item(m));
             if (!ok) {
-                throw CanteraError("install","Could not install flow device.");
+                throw CanteraError("flowdev_install",
+                                   "Could not install flow device.");
             }
             return 0;
         } catch (...) {
@@ -400,6 +421,7 @@ extern "C" {
 
     int flowdev_setMassFlowRate(int i, double mdot)
     {
+        /* @deprecated To be removed after Cantera 2.5. */
         try {
             FlowDeviceCabinet::item(i).setMassFlowRate(mdot);
             return 0;
@@ -410,6 +432,7 @@ extern "C" {
 
     int flowdev_setParameters(int i, int n, const double* v)
     {
+        /* @deprecated To be removed after Cantera 2.5. */
         try {
             FlowDeviceCabinet::item(i).setParameters(n, v);
             return 0;
@@ -418,10 +441,61 @@ extern "C" {
         }
     }
 
-    int flowdev_setFunction(int i, int n)
+    int flowdev_setMassFlowCoeff(int i, double v)
     {
         try {
+            FlowDeviceCabinet::get<MassFlowController>(i).setMassFlowCoeff(v);
+            return 0;
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int flowdev_setValveCoeff(int i, double v)
+    {
+        try {
+            FlowDeviceCabinet::get<Valve>(i).setValveCoeff(v);
+            return 0;
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int flowdev_setPressureCoeff(int i, double v)
+    {
+        try {
+            FlowDeviceCabinet::get<PressureController>(i).setPressureCoeff(v);
+            return 0;
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int flowdev_setFunction(int i, int n)
+    {
+        /* @deprecated To be removed after Cantera 2.5. */
+        try {
             FlowDeviceCabinet::item(i).setFunction(&FuncCabinet::item(n));
+            return 0;
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int flowdev_setPressureFunction(int i, int n)
+    {
+        try {
+            FlowDeviceCabinet::item(i).setPressureFunction(&FuncCabinet::item(n));
+            return 0;
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int flowdev_setTimeFunction(int i, int n)
+    {
+        try {
+            FlowDeviceCabinet::item(i).setTimeFunction(&FuncCabinet::item(n));
             return 0;
         } catch (...) {
             return handleAllExceptions(-1, ERR);
@@ -431,6 +505,20 @@ extern "C" {
     /////////////    Walls   ///////////////////////
 
     int wall_new(int type)
+    {
+        warn_deprecated("wall_new(int)",
+                        "To be changed after Cantera 2.5. "
+                        "Argument changed to string instead of int; use"
+                        "wall_new2(char*) during transition.");
+        try {
+            WallBase* w = WallFactory::factory()->newWall(type);
+            return WallCabinet::add(w);
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
+    int wall_new2(const char* type)
     {
         try {
             WallBase* w = WallFactory::factory()->newWall(type);

@@ -4,7 +4,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 //  Example
 //
@@ -21,9 +21,10 @@ static void printUsage()
 {
 }
 
-#include "cantera/Interface.h"
+#include "cantera/thermo/ThermoFactory.h"
 #include "cantera/kinetics.h"
 #include "cantera/kinetics/ImplicitSurfChem.h"
+#include "cantera/kinetics/InterfaceKinetics.h"
 #include "cantera/kinetics/solveSP.h"
 #include "cantera/base/fmt.h"
 #include <cstdio>

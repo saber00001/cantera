@@ -6,7 +6,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #ifndef CT_LATTICE_H
 #define CT_LATTICE_H
@@ -244,11 +244,22 @@ public:
     /*!
      * @param phaseRef  XML node referencing the lattice phase.
      * @param id        string id of the phase name
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     LatticePhase(XML_Node& phaseRef, const std::string& id = "");
 
     virtual std::string type() const {
         return "Lattice";
+    }
+
+    virtual bool isCompressible() const {
+        return false;
+    }
+
+    std::map<std::string, size_t> nativeState() const {
+        return { {"T", 0}, {"P", 1}, {"X", 2} };
     }
 
     //! @name Molar Thermodynamic Properties of the Solution
@@ -377,6 +388,7 @@ public:
      */
     //@{
 
+    virtual Units standardConcentrationUnits() const;
     virtual void getActivityConcentrations(doublereal* c) const;
 
     //! Return the standard concentration for the kth species
@@ -606,6 +618,8 @@ public:
     //! Set the density of lattice sites [kmol/m^3]
     void setSiteDensity(double sitedens);
 
+    virtual void initThermo();
+
     //! Set equation of state parameter values from XML entries.
     /*!
      * This method is called by function importPhase() when processing a phase
@@ -629,6 +643,9 @@ public:
      *   </thermo>
      * </phase>
      * @endcode
+     *
+     * @deprecated The XML input format is deprecated and will be removed in
+     *     Cantera 3.0.
      */
     virtual void setParametersFromXML(const XML_Node& eosdata);
     //@}

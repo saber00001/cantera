@@ -9,7 +9,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #define CANTERA_USE_INTERNAL
 #include "cantera/clib/ct.h"
@@ -284,6 +284,18 @@ extern "C" {
         }
     }
 
+    int thermo_getCharges(int n, size_t lenm, double* sc)
+    {
+        try {
+            ThermoPhase& p = ThermoCabinet::item(n);
+            p.checkSpeciesArraySize(lenm);
+            p.getCharges(sc);
+            return 0;
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
     int thermo_getName(int n, size_t lennm, char* nm)
     {
         try {
@@ -342,6 +354,14 @@ extern "C" {
     }
 
     //-------------- Thermo --------------------//
+
+    int thermo_newFromFile(const char* filename, const char* phasename) {
+        try {
+            return ThermoCabinet::add(newPhase(filename, phasename));
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
 
     int thermo_newFromXML(int mxml)
     {
@@ -856,6 +876,32 @@ extern "C" {
 
     //-------------- Kinetics ------------------//
 
+    int kin_newFromFile(const char* filename, const char* phasename,
+                        int reactingPhase, int neighbor1, int neighbor2,
+                        int neighbor3, int neighbor4)
+    {
+        try {
+            vector<thermo_t*> phases;
+            phases.push_back(&ThermoCabinet::item(reactingPhase));
+            if (neighbor1 >= 0) {
+                phases.push_back(&ThermoCabinet::item(neighbor1));
+                if (neighbor2 >= 0) {
+                    phases.push_back(&ThermoCabinet::item(neighbor2));
+                    if (neighbor3 >= 0) {
+                        phases.push_back(&ThermoCabinet::item(neighbor3));
+                        if (neighbor4 >= 0) {
+                            phases.push_back(&ThermoCabinet::item(neighbor4));
+                        }
+                    }
+                }
+            }
+            unique_ptr<Kinetics> kin = newKinetics(phases, filename, phasename);
+            return KineticsCabinet::add(kin.release());
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
+
     int kin_newFromXML(int mxml, int iphase,
                        int neighbor1, int neighbor2, int neighbor3,
                        int neighbor4)
@@ -1229,6 +1275,17 @@ extern "C" {
     }
 
     //------------------- Transport ---------------------------
+
+    int trans_newDefault(int ith, int loglevel)
+    {
+        try {
+            Transport* tr = newDefaultTransportMgr(&ThermoCabinet::item(ith),
+                                                   loglevel);
+            return TransportCabinet::add(tr);
+        } catch (...) {
+            return handleAllExceptions(-1, ERR);
+        }
+    }
 
     int trans_new(const char* model, int ith, int loglevel)
     {

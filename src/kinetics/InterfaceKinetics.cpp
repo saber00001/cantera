@@ -3,7 +3,7 @@
  */
 
 // This file is part of Cantera. See License.txt in the top-level directory or
-// at http://www.cantera.org/license.txt for license and copyright information.
+// at https://cantera.org/license.txt for license and copyright information.
 
 #include "cantera/kinetics/InterfaceKinetics.h"
 #include "cantera/kinetics/RateCoeffMgr.h"
@@ -137,7 +137,8 @@ void InterfaceKinetics::updateKc()
         for (size_t i = 0; i < m_revindex.size(); i++) {
             size_t irxn = m_revindex[i];
             if (irxn == npos || irxn >= nReactions()) {
-                throw CanteraError("InterfaceKinetics", "illegal value: irxn = {}", irxn);
+                throw CanteraError("InterfaceKinetics::updateKc",
+                                   "illegal value: irxn = {}", irxn);
             }
             // WARNING this may overflow HKM
             m_rkcn[irxn] = exp(m_rkcn[irxn]*rrt);
@@ -570,7 +571,7 @@ bool InterfaceKinetics::addReaction(shared_ptr<Reaction> r_base)
         } else {
             m_ctrxn_BVform.push_back(0);
             if (re->film_resistivity > 0.0) {
-                throw CanteraError("InterfaceKinetics::addReaction()",
+                throw CanteraError("InterfaceKinetics::addReaction",
                                    "film resistivity set for elementary reaction");
             }
         }
@@ -639,7 +640,7 @@ SurfaceArrhenius InterfaceKinetics::buildSurfaceArrhenius(
                 if (iPhase != iInterface) {
                     // Non-interface species. There should be exactly one of these
                     if (foundStick) {
-                        throw CanteraError("InterfaceKinetics::addReaction",
+                        throw CanteraError("InterfaceKinetics::buildSurfaceArrhenius",
                             "Multiple non-interface species found"
                             "in sticking reaction: '" + r.equation() + "'");
                     }
@@ -648,7 +649,7 @@ SurfaceArrhenius InterfaceKinetics::buildSurfaceArrhenius(
                 }
             }
             if (!foundStick) {
-                throw CanteraError("InterfaceKinetics::addReaction",
+                throw CanteraError("InterfaceKinetics::buildSurfaceArrhenius",
                     "No non-interface species found"
                     "in sticking reaction: '" + r.equation() + "'");
             }
@@ -726,13 +727,15 @@ void InterfaceKinetics::addPhase(thermo_t& thermo)
 void InterfaceKinetics::init()
 {
     size_t ks = reactionPhaseIndex();
-    if (ks == npos) throw CanteraError("InterfaceKinetics::finalize",
-                                           "no surface phase is present.");
+    if (ks == npos) {
+        throw CanteraError("InterfaceKinetics::init",
+                           "no surface phase is present.");
+    }
 
     // Check to see that the interface routine has a dimension of 2
     m_surf = (SurfPhase*)&thermo(ks);
     if (m_surf->nDim() != m_nDim) {
-        throw CanteraError("InterfaceKinetics::finalize",
+        throw CanteraError("InterfaceKinetics::init",
                            "expected interface dimension = 2, but got dimension = {}",
                            m_surf->nDim());
     }
@@ -800,9 +803,7 @@ void InterfaceKinetics::solvePseudoSteadyStateProblem(
 
 void InterfaceKinetics::setPhaseExistence(const size_t iphase, const int exists)
 {
-    if (iphase >= m_thermo.size()) {
-        throw CanteraError("InterfaceKinetics:setPhaseExistence", "out of bounds");
-    }
+    checkPhaseIndex(iphase);
     if (exists) {
         if (!m_phaseExists[iphase]) {
             m_phaseExistsCheck--;
@@ -821,25 +822,19 @@ void InterfaceKinetics::setPhaseExistence(const size_t iphase, const int exists)
 
 int InterfaceKinetics::phaseExistence(const size_t iphase) const
 {
-    if (iphase >= m_thermo.size()) {
-        throw CanteraError("InterfaceKinetics:phaseExistence()", "out of bounds");
-    }
+    checkPhaseIndex(iphase);
     return m_phaseExists[iphase];
 }
 
 int InterfaceKinetics::phaseStability(const size_t iphase) const
 {
-    if (iphase >= m_thermo.size()) {
-        throw CanteraError("InterfaceKinetics:phaseStability()", "out of bounds");
-    }
+    checkPhaseIndex(iphase);
     return m_phaseIsStable[iphase];
 }
 
 void InterfaceKinetics::setPhaseStability(const size_t iphase, const int isStable)
 {
-    if (iphase >= m_thermo.size()) {
-        throw CanteraError("InterfaceKinetics:setPhaseStability", "out of bounds");
-    }
+    checkPhaseIndex(iphase);
     if (isStable) {
         m_phaseIsStable[iphase] = true;
     } else {
